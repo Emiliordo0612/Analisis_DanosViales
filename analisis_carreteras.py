@@ -1,14 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Proyecto de Clasificación de Daños en Carreteras - Versión Mejorada con Visualización
-Técnicas implementadas:
-- Clasificación de tipo de daño (5 categorías)
-- Clasificación de gravedad (baja, media, alta)
-- Visualización de imágenes de prueba
-- Preprocesamiento adaptado a condiciones Saudíes
-- Resultados detallados con ejemplos
+Proyecto Analisis de daños en carreteras y su gravedad
 """
-
 import cv2
 import numpy as np
 import os
@@ -31,86 +24,40 @@ os.makedirs(CARPETA_IMAGENES, exist_ok=True)
 os.makedirs(CARPETA_CLASIFICADAS, exist_ok=True)
 os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
 
-def mostrar_ejemplos_antes_procesamiento(imagenes, num_ejemplos=5):
-    """Muestra ejemplos de imágenes antes del procesamiento"""
-    print("\n🖼️ Ejemplos de imágenes antes del procesamiento:")
+def preprocesar_imagen(img):    # Esta función prepara las fotos de carreteras para que sean más fáciles de analizar
     
-    plt.figure(figsize=(15, 8))
-    for i in range(min(num_ejemplos, len(imagenes))):
-        plt.subplot(1, num_ejemplos, i+1)
-        img_rgb = cv2.cvtColor(imagenes[i], cv2.COLOR_BGR2RGB) if len(imagenes[i].shape) == 3 else imagenes[i]
-        plt.imshow(img_rgb, cmap='gray' if len(imagenes[i].shape) == 2 else None)
-        plt.title(f"Imagen {i+1}")
-        plt.axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(CARPETA_RESULTADOS, 'ejemplos_antes_procesamiento.jpg'))
-    plt.show()
-
-def preprocesar_imagen(img):
-    """Preprocesamiento mejorado para condiciones Saudíes"""
-    # Alternativa al balance de blancos
-    if len(img.shape) == 3:  # Solo si es imagen a color
+    if len(img.shape) == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(img)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         l = clahe.apply(l)
         img = cv2.merge((l, a, b))
         img = cv2.cvtColor(img, cv2.COLOR_LAB2BGR)
-    
-    # Convertir a escala de grises si no lo está
     if len(img.shape) == 3:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     else:
         gray = img
-    
-    # Mejorar contraste
     eq = cv2.equalizeHist(gray)
-    
-    # Reducción de ruido adaptada
     blur = cv2.bilateralFilter(eq, 9, 75, 75)
     
     return cv2.resize(blur, (150, 150))
 
-def mostrar_ejemplos_despues_procesamiento(imagenes, num_ejemplos=5):
-    """Muestra ejemplos de imágenes después del procesamiento"""
-    print("\n🖼️ Ejemplos de imágenes después del procesamiento:")
-    
-    plt.figure(figsize=(15, 8))
-    for i in range(min(num_ejemplos, len(imagenes))):
-        img_procesada = preprocesar_imagen(imagenes[i])
-        plt.subplot(1, num_ejemplos, i+1)
-        plt.imshow(img_procesada, cmap='gray')
-        plt.title(f"Imagen {i+1} procesada")
-        plt.axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(CARPETA_RESULTADOS, 'ejemplos_despues_procesamiento.jpg'))
-    plt.show()
-
-def calcular_gravedad(imagen):
-    """Determina la gravedad del daño con visualización"""
-    # Procesamiento para visualización
+def calcular_gravedad(imagen): #Funcion para el procesamiento de nivel de gravedad de las imagenes
     if len(imagen.shape) == 2:
         img_vis = cv2.cvtColor(imagen, cv2.COLOR_GRAY2BGR)
     else:
         img_vis = imagen.copy()
-    
     # Detección de bordes
     edges = cv2.Canny(imagen, 50, 150)
-    
     # Calcular métricas
     area_total = imagen.shape[0] * imagen.shape[1]
     area_daño = np.sum(edges > 0) / area_total
-    
     # Encontrar contornos y dibujarlos
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(img_vis, contours, -1, (0, 255, 0), 1)
-    
     ancho_promedio = 0
     if len(contours) > 0:
         ancho_promedio = np.mean([cv2.boundingRect(cnt)[2] for cnt in contours])
-    
     # Determinar gravedad
     if area_daño < 0.05 or ancho_promedio < 3:
         gravedad = "baja"
@@ -121,8 +68,7 @@ def calcular_gravedad(imagen):
     else:
         gravedad = "alta"
         color = (0, 0, 255)  # Rojo
-    
-    # Añadir texto de gravedad
+
     cv2.putText(img_vis, f"Gravedad: {gravedad}", (10, 20), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
     
@@ -130,14 +76,13 @@ def calcular_gravedad(imagen):
 
 def visualizar_clasificacion_gravedad(categorias, gravedades, num_ejemplos=3):
     """Muestra ejemplos visuales de clasificación con gravedad"""
-    print("\n📊 Visualización de clasificación con gravedad:")
+    print("\nVisualización de clasificación con gravedad:")
     
     fig, axs = plt.subplots(len(categorias), num_ejemplos, figsize=(15, 12))
     if len(categorias) == 1:
-        axs = [axs]  # Para manejar caso de una sola categoría
+        axs = [axs]  
     
     for i, categoria in enumerate(categorias):
-        # Obtener imágenes de esta categoría
         ruta_categoria = os.path.join(CARPETA_CLASIFICADAS, categoria)
         imagenes_categoria = [f for f in os.listdir(ruta_categoria) if f.startswith('daño_')][:num_ejemplos]
         
@@ -159,7 +104,7 @@ def visualizar_clasificacion_gravedad(categorias, gravedades, num_ejemplos=3):
     plt.savefig(os.path.join(CARPETA_RESULTADOS, 'clasificacion_gravedad.jpg'))
     plt.show()
 
-def extraer_imagenes(ruta_imagen):
+def extraer_imagenes(ruta_imagen): #Funcion para separar las imagenes del collage 
     """Divide la imagen compuesta en imágenes individuales"""
     print("\n" + "="*50)
     print("Paso 1: Extrayendo imágenes individuales...")
@@ -167,14 +112,6 @@ def extraer_imagenes(ruta_imagen):
     img = cv2.imread(ruta_imagen)
     if img is None:
         raise ValueError("No se pudo cargar la imagen. Verifica la ruta.")
-    
-    # Mostrar imagen original
-    plt.figure(figsize=(10, 5))
-    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    plt.title("Imagen compuesta original")
-    plt.axis('off')
-    plt.savefig(os.path.join(CARPETA_RESULTADOS, 'imagen_original.jpg'))
-    plt.show()
     
     # Dividir en 5 columnas y 6 filas (30 imágenes)
     imagenes = []
@@ -190,39 +127,33 @@ def extraer_imagenes(ruta_imagen):
             nombre_archivo = f"img_{fila+1}_{col+1}.jpg"
             cv2.imwrite(os.path.join(CARPETA_IMAGENES, nombre_archivo), img_recortada)
             imagenes.append(img_recortada)
-    
-    # Mostrar ejemplos antes/durante el procesamiento
-    mostrar_ejemplos_antes_procesamiento(imagenes)
-    
     print(f"\n✅ {len(imagenes)} imágenes guardadas en {CARPETA_IMAGENES}")
     return imagenes
 
-def clasificar_imagenes(imagenes):
-    """Clasifica imágenes según el mapeo específico de filas a categorías"""
+def clasificar_imagenes(imagenes): #Funcion para la clasificacion de cada una de las imagenes extraidas 
     print("\n" + "="*50)
     print("Paso 2: Clasificando imágenes por tipo y gravedad de daño...")
     
-    # Mapeo de filas a categorías según tu especificación
+    # Asignacion de las categorias de los daños a tener encuenta segun lo indicado
     mapeo_categorias = {
-        0: 'grietas_longitudinales_transversales',  # Fila 1 (D0)
-        1: 'grietas_cocodrilo',                    # Fila 2 (D1)
-        2: 'grietas_borde',                        # Fila 3 (D2)
-        3: 'baches',                               # Fila 4 (D3)
-        4: 'depresiones',                          # Fila 5 (D4)
-        5: 'empuje'                                # Fila 6 (D5)
+        0: 'Longitudinal and Transverse Cracks',
+        1: 'Alligator Cracks',                    
+        2: 'Edge Cracks',                       
+        3: 'Potholes',                               
+        4: 'Depression',                          
+        5: 'Shoving'                                
     }
     
     categorias = list(mapeo_categorias.values())
     niveles_gravedad = ['baja', 'media', 'alta']
-    
-    # Crear subcarpetas para cada categoría
+
     for categoria in categorias:
         os.makedirs(os.path.join(CARPETA_CLASIFICADAS, categoria), exist_ok=True)
     
     gravedades = {}
     
     # Asignación según filas (cada fila = 1 categoría específica)
-    for fila in range(6):  # 6 filas en la imagen compuesta
+    for fila in range(6): 
         categoria_actual = mapeo_categorias[fila]
         
         # Procesar las 5 columnas de esta fila
@@ -232,7 +163,7 @@ def clasificar_imagenes(imagenes):
                 continue
                 
             img = imagenes[indice_imagen]
-            nombre_archivo = f"daño_f{fila+1}c{col+1}.jpg"  # Ej: daño_f1c3.jpg (fila 1, col 3)
+            nombre_archivo = f"daño_f{fila+1}c{col+1}.jpg"
             ruta_guardado = os.path.join(CARPETA_CLASIFICADAS, categoria_actual, nombre_archivo)
             
             # Guardar imagen
@@ -378,10 +309,6 @@ def main():
         
         # 1. Extraer imágenes individuales
         imagenes = extraer_imagenes(ruta_imagen_compuesta)
-        
-        # Mostrar ejemplos después del procesamiento
-        mostrar_ejemplos_despues_procesamiento(imagenes)
-        
         # 2. Clasificar imágenes (tipo + gravedad)
         categorias, niveles_gravedad, gravedades = clasificar_imagenes(imagenes)
         
@@ -418,7 +345,7 @@ def main():
         print("✅ ¡Proceso completado exitosamente!")
         print("="*50)
         
-        print("\n📋 Resumen de clasificación de gravedad en muestras:")
+        print("\nResumen de clasificación de gravedad en muestras:")
         for img, datos in list(gravedades.items())[:5]:
             print(f"- {img}: {datos['categoria']} (Gravedad: {datos['gravedad']})")
         
@@ -426,13 +353,8 @@ def main():
     
     except Exception as e:
         print("\n" + "="*50)
-        print(f"❌ Error: {str(e)}")
+        print(f"Error: {str(e)}")
         print("="*50)
-        print("\nPosibles soluciones:")
-        print("1. Verificar que la imagen existe en la ruta correcta")
-        print("2. Asegurar permisos de escritura en las carpetas")
-        print("3. Verificar que OpenCV esté instalado correctamente")
-        print("4. Revisar que haya imágenes en cada categoría")
 
 if __name__ == "__main__":
     main()
